@@ -152,19 +152,19 @@
     <div class="status-bar">
         <span id="clock">12:00</span>
         <div style="display:flex; gap:5px;">
-            <span>LTE</span>
-            <span>🔋 85%</span>
+            <span>5G</span>
+            <span>🔋 100%</span>
         </div>
     </div>
 
     <div id="desktop">
         <div class="app-icon" onclick="openApp('terminal')">
             <div class="icon-circle" style="background:#222;">💻</div>
-            <span class="app-name">Termux</span>
+            <span class="app-name">Terminal</span>
         </div>
         <div class="app-icon" onclick="openApp('files')">
             <div class="icon-circle" style="background:#f9a825;">📁</div>
-            <span class="app-name">Файлы</span>
+            <span class="app-name">Files</span>
         </div>
         <div class="app-icon" onclick="openApp('settings')">
             <div class="icon-circle" style="background:#546e7a;">⚙️</div>
@@ -179,7 +179,7 @@
     <div id="app-terminal" class="window">
         <div style="background:#333; padding:10px; font-weight:bold;">Termux (Lineage Shell)</div>
         <div class="terminal-content" id="term-output" onclick="document.getElementById('cmd').focus()">
-            <div>LineageOS 21 (Android 14) [Virtual]</div>
+            <div>Android 16[Virtual]</div>
             <div>Type 'help' for commands.</div>
             <br>
             <div class="input-line">
@@ -195,15 +195,15 @@
             <div class="setting-header">О телефоне</div>
             <div class="setting-item">
                 <div style="font-size:14px;">Имя устройства</div>
-                <div style="color:#aaa; font-size:12px;">LineageOS Virtual</div>
+                <div style="color:#aaa; font-size:12px;">Android</div>
             </div>
             <div class="setting-item">
                 <div style="font-size:14px;">Версия Android</div>
-                <div style="color:#aaa; font-size:12px;">14 (UpsideDownCake)</div>
+                <div style="color:#aaa; font-size:12px;">16 (UpsideDownCake)</div>
             </div>
             <div class="setting-item">
                 <div style="font-size:14px;">Процессор</div>
-                <div style="color:#aaa; font-size:12px;">Virtual Snapdragon 8 Gen 2</div>
+                <div style="color:#aaa; font-size:12px;">Snapdragon 9 elite</div>
             </div>
         </div>
     </div>
@@ -274,13 +274,13 @@
                     "Download": { type: "dir", children: { "photo.jpg": { type: "file" } } },
                     "DCIM": { type: "dir", children: {} },
                     "Music": { type: "dir", children: {} },
-                    "notes.txt": { type: "file", content: "To-do list: Install GApps" }
+                    "notes.txt": { type: "file", content: "To-do list: Install update" }
                 }
             },
             "system": {
                 type: "dir",
                 children: {
-                    "build.prop": { type: "file", content: "ro.product.model=LineageVirtual\nro.build.version=14" },
+                    "build.prop": { type: "file", content: "ro.product.Android\nro.build.version=16" },
                     "bin": { type: "dir", children: {} }
                 }
             },
@@ -391,7 +391,7 @@
                     break;
                 
                 case 'uname':
-                    print("Linux localhost 5.10.101-android14 #1 SMP PREEMPT", "#aaa");
+                    print("Linux localhost 5.10.101-android16 #1 SMP PREEMPT", "#aaa");
                     break;
 
                 case 'clear':
