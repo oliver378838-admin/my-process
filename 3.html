@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>x86 Bootloader Visualizer</title>
+    <style>
+        :root {
+            --bg: #1e1e1e;
+            --term: #0c0c0c;
+            --accent: #00ff00;
+            --sec: #4caf50;
+            --highlight: #d4d400;
+        }
+        body {
+            background: var(--bg);
+            color: #ddd;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+        h2 { color: var(--accent); text-shadow: 0 0 5px var(--accent); }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 900px;
+        }
+
+        .box {
+            background: var(--term);
+            border: 1px solid #444;
+            padding: 15px;
+            border-radius: 5px;
+            height: 300px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .title {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            background: #333;
+            color: #fff;
+            padding: 5px;
+            font-size: 14px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .content {
+            margin-top: 25px;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: pre;
+        }
+
+        /* Эмуляция памяти */
+        .hex-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+            font-size: 10px;
+            font-family: monospace;
+        }
+        .hex-cell {
+            background: #222;
+            padding: 2px;
+            text-align: center;
+            color: #555;
+        }
+        .hex-cell.active {
+            background: var(--sec);
+            color: #000;
+            font-weight: bold;
+        }
+        .hex-cell.magic {
+            background: #ff5722;
+            color: #fff;
+        }
+
+        /* Панель управления */
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        button {
+            background: var(--sec);
+            border: none;
+            padding: 10px 20px;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:disabled { background: #555; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: var(--accent); }
+
+        #screen {
+            grid-column: 1 / -1;
+            height: 100px;
+            border: 2px solid var(--accent);
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            text-shadow: 0 0 5px var(--accent);
+        }
+
+        .highlight-line { background: #333; color: var(--highlight); width: 100%; display: block;}
+    </style>
+</head>
+<body>
+
+    <h2>x86 Bootloader Visualization</h2>
+
+    <div class="container">
+        <div id="screen">NO SIGNAL</div>
+    </div>
+
+    <div class="container" style="margin-top: 20px;">
+        
+        <div class="box">
+            <div class="title">HDD: Sector 0 (512 bytes)</div>
+            <div class="content" id="disk-view">
+                </div>
+        </div>
+
+        <div class="box">
+            <div class="title">RAM (Address 0x7C00)</div>
+            <div class="content" id="ram-view">
+                <div style="color: #777; text-align: center; padding-top: 100px;">(Empty / Random Garbage)</div>
+            </div>
+        </div>
+
+        <div class="box" style="grid-column: 1 / -1; height: auto;">
+            <div class="title">CPU Execution (Real Mode 16-bit)</div>
+            <div class="content" style="display: flex; gap: 20px;">
+                <div id="asm-code" style="flex: 1;">
+; Minimal Bootloader Assembly
+BITS 16
+ORG 0x7C00
+
+start:
+    xor ax, ax          ; Zero out AX
+    mov ds, ax          ; Set Data Segment to 0
+    mov si, msg         ; Load message address
+print_char:
+    lodsb               ; Load byte at SI into AL
+    or al, al           ; Check if end of string (0)
+    jz halt             ; If 0, jump to halt
+    mov ah, 0x0E        ; BIOS teletype function
+    int 0x10            ; Call BIOS interrupt
+    jmp print_char      ; Loop
+halt:
+    cli
+    hlt                 ; Stop CPU
+
+msg: db 'Hello OS!', 0
+times 510-($-$$) db 0   ; Padding
+dw 0xAA55               ; Boot Signature
+                </div>
+                <div style="width: 200px; border-left: 1px solid #444; padding-left: 10px;">
+                    <strong>Registers:</strong><br>
+                    CS: <span id="reg-cs">0000</span><br>
+                    IP: <span id="reg-ip">FFF0</span><br>
+                    AX: <span id="reg-ax">0000</span><br>
+                    SI: <span id="reg-si">0000</span><br>
+                    <br>
+                    <strong>Status:</strong><br>
+                    <span id="status-text">Power Off</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="btn-step" onclick="nextStep()">Power ON / Next Step</button>
+        <button onclick="location.reload()">Reset</button>
+    </div>
+
+<script>
+    // --- 1. ДАННЫЕ ---
+    // Эмуляция машинного кода (упрощенно для визуализации)
+    // B8 00 00 (MOV AX,0) | 8E D8 (MOV DS, AX) | BE [MSG] ... 55 AA
+    const bootloaderHex = [
+        "31", "C0", "8E", "D8", "BE", "18", "7C", "AC", 
+        "08", "C0", "74", "05", "B4", "0E", "CD", "10", 
+        "EB", "F5", "FA", "F4", 
+        // ... 'H', 'e', 'l', 'l', 'o' ...
+        "48", "65", "6C", "6C", "6F", "20", "4F", "53", "21", "00"
+    ];
+    
+    // Заполняем "диск" до 510 байт нулями + сигнатура
+    const diskData = [...bootloaderHex];
+    while(diskData.length < 510) diskData.push("00");
+    diskData.push("55"); // 0x55
+    diskData.push("AA"); // 0xAA (Little Endian for 0xAA55)
+
+    // --- 2. ВИЗУАЛИЗАЦИЯ ---
+    const diskView = document.getElementById('disk-view');
+    const ramView = document.getElementById('ram-view');
+    const screenDiv = document.getElementById('screen');
+    const statusText = document.getElementById('status-text');
+    const asmLines = document.getElementById('asm-code').innerText.split('\n');
+    
+    // Генерация сетки диска
+    function renderGrid(container, data, highlightRange = []) {
+        container.innerHTML = '<div class="hex-grid">' + 
+            data.map((byte, i) => {
+                let cls = 'hex-cell';
+                if (i >= 510) cls += ' magic'; // Подсветка сигнатуры
+                if (i >= highlightRange[0] && i <= highlightRange[1]) cls += ' active';
+                return `<div class="${cls}">${byte}</div>`;
+            }).join('') + 
+        '</div>';
+    }
+
+    renderGrid(diskView, diskData);
+
+    // --- 3. ЛОГИКА ЭТАПОВ ---
+    let step = 0;
+    
+    const steps = [
+        {
+            text: "BIOS POST (Power On Self Test)",
+            action: () => {
+                screenDiv.innerText = "BIOS CHECKING RAM...";
+                document.getElementById('reg-ip').innerText = "FFF0 (BIOS Entry)";
+            }
+        },
+        {
+            text: "BIOS checks Boot Sector (MBR)",
+            action: () => {
+                screenDiv.innerText = "Found Bootable Device...";
+                statusText.innerText = "Reading Sector 0";
+                // Подсвечиваем сигнатуру 0xAA55
+                renderGrid(diskView, diskData, [510, 511]);
+            }
+        },
+        {
+            text: "Loading Sector 0 to RAM (0x7C00)",
+            action: () => {
+                statusText.innerText = "Copying...";
+                renderGrid(ramView, diskData); // Показываем данные в RAM
+                screenDiv.innerText = "Loading...";
+            }
+        },
+        {
+            text: "JUMP to 0x7C00 (Transfer Control)",
+            action: () => {
+                statusText.innerText = "JMP 0x0000:0x7C00";
+                document.getElementById('reg-cs').innerText = "0000";
+                document.getElementById('reg-ip').innerText = "7C00";
+                highlightAsm(4); // start:
+            }
+        },
+        {
+            text: "Executing: Setup Registers",
+            action: () => {
+                document.getElementById('reg-ax').innerText = "0000";
+                highlightAsm(5); // xor ax, ax
+            }
+        },
+        {
+            text: "Executing: Load String Address",
+            action: () => {
+                document.getElementById('reg-si').innerText = "7C18"; // Адрес строки
+                highlightAsm(7); // mov si, msg
+            }
+        },
+        {
+            text: "Interrupt 0x10 (Print 'H')",
+            action: () => { screenDiv.innerText = "H_"; highlightAsm(13); }
+        },
+        {
+            text: "Interrupt 0x10 (Print 'e')",
+            action: () => { screenDiv.innerText = "He_"; highlightAsm(13); }
+        },
+        {
+            text: "Interrupt 0x10 (Print 'l')",
+            action: () => { screenDiv.innerText = "Hel_"; highlightAsm(13); }
+        },
+        {
+            text: "Interrupt 0x10 (Print 'l')",
+            action: () => { screenDiv.innerText = "Hell_"; highlightAsm(13); }
+        },
+        {
+            text: "Interrupt 0x10 (Print 'o')",
+            action: () => { screenDiv.innerText = "Hello_"; highlightAsm(13); }
+        },
+        {
+            text: "Interrupt 0x10 (Print ' ')",
+            action: () => { screenDiv.innerText = "Hello _"; highlightAsm(13); }
+        },
+        {
+            text: "Interrupt 0x10 (Print 'OS!')",
+            action: () => { screenDiv.innerText = "Hello OS!_"; highlightAsm(13); }
+        },
+        {
+            text: "CPU Halted",
+            action: () => { 
+                statusText.innerText = "HALTED"; 
+                highlightAsm(16); // hlt
+                document.getElementById('btn-step').disabled = true;
+                document.getElementById('btn-step').innerText = "Boot Complete";
+            }
+        }
+    ];
+
+    function nextStep() {
+        if (step < steps.length) {
+            const s = steps[step];
+            statusText.innerText = s.text;
+            s.action();
+            step++;
+        }
+    }
+
+    function highlightAsm(lineIndex) {
+        // Простая подсветка строки кода
+        const htmlLines = asmLines.map((line, i) => {
+            if (i === lineIndex) return `<span class="highlight-line">${line}</span>`;
+            return line;
+        });
+        document.getElementById('asm-code').innerHTML = htmlLines.join('\n');
+    }
+
+</script>
+</body>
+</html>

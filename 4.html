@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Battery Neural Core</title>
+    <style>
+        :root {
+            --bg: #09090b;
+            --panel: #18181b;
+            --primary: #10b981; /* Green */
+            --danger: #ef4444;  /* Red */
+            --warn: #f59e0b;    /* Orange */
+            --accent: #3b82f6;  /* Blue */
+            --text: #e4e4e7;
+            --font-mono: 'Courier New', monospace;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            width: 900px;
+            height: 600px;
+            background: var(--panel);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            border: 1px solid #333;
+        }
+
+        /* --- ЛЕВАЯ КОЛОНКА: ИНФО --- */
+        .sidebar {
+            grid-row: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-right: 1px solid #333;
+            padding-right: 20px;
+        }
+
+        .battery-visual {
+            width: 150px;
+            height: 250px;
+            border: 8px solid #444;
+            border-radius: 15px;
+            padding: 5px;
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .battery-visual::before { /* Клемма */
+            content: '';
+            position: absolute;
+            top: -20px; left: 50%; transform: translateX(-50%);
+            width: 60px; height: 12px;
+            background: #444;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .level-fill {
+            height: 100%;
+            width: 100%;
+            background: var(--primary);
+            border-radius: 8px;
+            position: absolute;
+            bottom: 0; left: 0;
+            transition: height 0.5s, background 0.5s;
+            box-shadow: 0 0 20px var(--primary);
+        }
+
+        .percentage-text {
+            font-size: 3rem;
+            font-weight: bold;
+            z-index: 2;
+            position: relative;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+        }
+
+        .status-badge {
+            background: #333;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+
+        /* --- ПРАВАЯ КОЛОНКА: ГРАФИК И LOGS --- */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .chart-container {
+            background: #000;
+            border-radius: 10px;
+            height: 250px;
+            position: relative;
+            border: 1px solid #333;
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .ai-log {
+            background: #000;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--primary);
+            padding: 10px;
+            border-radius: 10px;
+            flex-grow: 1;
+            overflow-y: auto;
+            border: 1px solid #333;
+        }
+
+        .log-entry { margin-bottom: 4px; }
+        .log-warn { color: var(--warn); }
+        .log-crit { color: var(--danger); }
+
+        /* --- УПРАВЛЕНИЕ --- */
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        button {
+            background: #333;
+            border: none;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        button:hover { background: #444; }
+        
+        button.optimize-btn {
+            background: linear-gradient(45deg, var(--accent), #2563eb);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+        }
+        button.optimize-btn:active { transform: scale(0.98); }
+
+        /* Анимация сканирования */
+        .scan-line {
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 2px;
+            background: rgba(255,255,255,0.5);
+            box-shadow: 0 0 10px white;
+            animation: scan 3s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes scan { 0% {top:0} 100% {top:100%} }
+
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <div class="sidebar">
+        <h3>ENERGY CORE</h3>
+        <div class="battery-visual">
+            <div class="scan-line"></div>
+            <div class="level-fill" id="fill-anim"></div>
+        </div>
+        <div class="percentage-text" id="perc-display">--%</div>
+        <div class="status-badge" id="status-display">INITIALIZING...</div>
+        
+        <div style="margin-top: auto; width: 100%;">
+            <p style="font-size: 0.8rem; color: #888;">Health Estimate</p>
+            <div style="background:#333; height: 6px; border-radius:3px;">
+                <div style="width: 92%; background: var(--primary); height: 100%; border-radius:3px;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size: 0.7rem; margin-top:5px;">
+                <span>Good</span>
+                <span>92%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div>
+            <h3 style="margin:0 0 10px 0;">AI DISCHARGE PREDICTION</h3>
+            <div class="chart-container">
+                <canvas id="batteryChart"></canvas>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="optimize-btn" onclick="aiOptimize()">
+                ⚡ RUN AI OPTIMIZER
+            </button>
+            <button onclick="toggleSimulation()">
+                🔄 DEMO MODE
+            </button>
+        </div>
+
+        <div class="ai-log" id="console-log">
+            <div class="log-entry">> Core initialized.</div>
+            <div class="log-entry">> Waiting for Battery API...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 1. CONFIG & STATE ---
+    const state = {
+        level: 100,
+        charging: false,
+        history: [], // {time, level}
+        prediction: null,
+        isDemo: false,
+        dischargeRate: 0.5 // % per tick (for demo)
+    };
+
+    const els = {
+        fill: document.getElementById('fill-anim'),
+        perc: document.getElementById('perc-display'),
+        status: document.getElementById('status-display'),
+        log: document.getElementById('console-log'),
+        canvas: document.getElementById('batteryChart')
+    };
+
+    // --- 2. BATTERY API & DATA ---
+    
+    async function initBattery() {
+        if ('getBattery' in navigator) {
+            try {
+                const battery = await navigator.getBattery();
+                log("Battery API connected.");
+                
+                updateBatteryUI(battery);
+                
+                // Слушатели событий
+                battery.addEventListener('levelchange', () => updateBatteryUI(battery));
+                battery.addEventListener('chargingchange', () => updateBatteryUI(battery));
+                
+                // Старт мониторинга для графика
+                setInterval(() => recordData(battery), 2000); 
+
+            } catch (e) {
+                log("API Access Error. Switching to Simulation.", "crit");
+                startSimulation();
+            }
+        } else {
+            log("Battery API not supported on this device.", "warn");
+            log("Activating Virtual Simulation Core...");
+            startSimulation();
+        }
+    }
+
+    function updateBatteryUI(battery) {
+        if (state.isDemo) return;
+        state.level = battery.level * 100;
+        state.charging = battery.charging;
+        render();
+    }
+
+    function render() {
+        // Цвет батареи
+        let color = 'var(--primary)';
+        if(state.level < 20) color = 'var(--danger)';
+        else if(state.level < 50) color = 'var(--warn)';
+
+        els.fill.style.height = `${state.level}%`;
+        els.fill.style.background = state.charging ? 'var(--accent)' : color;
+        els.fill.style.boxShadow = `0 0 20px ${state.charging ? 'var(--accent)' : color}`;
+        
+        els.perc.innerText = `${Math.round(state.level)}%`;
+        els.status.innerText = state.charging ? "CHARGING ⚡" : "DISCHARGING";
+        
+        if(state.charging) els.status.style.color = "var(--accent)";
+        else els.status.style.color = "#fff";
+    }
+
+    // --- 3. AI PREDICTION ENGINE (Linear Regression) ---
+
+    function recordData(source) {
+        const now = Date.now();
+        const lvl = state.isDemo ? state.level : (source ? source.level * 100 : state.level);
+
+        // Добавляем точку
+        state.history.push({ t: now, l: lvl });
+        
+        // Храним только последние 20 точек
+        if(state.history.length > 20) state.history.shift();
+
+        // Если демо режим, уменьшаем заряд
+        if(state.isDemo && !state.charging) {
+            state.level -= (Math.random() * state.dischargeRate);
+            if(state.level < 0) state.level = 100;
+        }
+
+        drawChart();
+        if(state.history.length > 2) analyzeTrend();
+    }
+
+    function analyzeTrend() {
+        // Простая линейная регрессия для расчета времени до 0%
+        const first = state.history[0];
+        const last = state.history[state.history.length - 1];
+        
+        const timeDiff = (last.t - first.t) / 1000 / 60; // minutes
+        const levelDiff = first.l - last.l; // % dropped
+
+        if (state.charging) {
+             log("AI: Power source detected. Charging analysis...", "success");
+             return;
+        }
+
+        if (levelDiff > 0 && timeDiff > 0) {
+            const dropPerMin = levelDiff / timeDiff;
+            const minsLeft = last.l / dropPerMin;
+            
+            const hours = Math.floor(minsLeft / 60);
+            const mins = Math.floor(minsLeft % 60);
+            
+            log(`AI Forecast: Empty in ~${hours}h ${mins}m`);
+        }
+    }
+
+    // --- 4. VISUALIZATION (Canvas) ---
+
+    function drawChart() {
+        const ctx = els.canvas.getContext('2d');
+        const w = els.canvas.width = els.canvas.offsetWidth;
+        const h = els.canvas.height = els.canvas.offsetHeight;
+
+        ctx.clearRect(0, 0, w, h);
+        
+        // Сетка
+        ctx.strokeStyle = '#222';
+        ctx.beginPath();
+        for(let i=0; i<w; i+=20) { ctx.moveTo(i,0); ctx.lineTo(i,h); }
+        for(let i=0; i<h; i+=20) { ctx.moveTo(0,i); ctx.lineTo(w,i); }
+        ctx.stroke();
+
+        if(state.history.length < 2) return;
+
+        // Рисуем график
+        ctx.beginPath();
+        ctx.strokeStyle = state.charging ? '#3b82f6' : '#10b981';
+        ctx.lineWidth = 3;
+        
+        // Масштабирование
+        const minTime = state.history[0].t;
+        const maxTime = state.history[state.history.length-1].t;
+        const timeRange = maxTime - minTime || 1;
+
+        state.history.forEach((pt, i) => {
+            const x = ((pt.t - minTime) / timeRange) * (w * 0.8); // Используем 80% ширины
+            const y = h - ((pt.l / 100) * h);
+            if(i===0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Экстраполяция (пунктирная линия в будущее)
+        if(!state.charging && state.history.length > 5) {
+            ctx.beginPath();
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#ef4444';
+            
+            const lastPt = state.history[state.history.length-1];
+            const startX = w * 0.8;
+            const startY = h - ((lastPt.l / 100) * h);
+            
+            ctx.moveTo(startX, startY);
+            // Простая визуальная экстраполяция вниз
+            ctx.lineTo(w, h); 
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+    }
+
+    // --- 5. SYSTEM FUNCTIONS ---
+
+    function log(msg, type='') {
+        const div = document.createElement('div');
+        div.className = 'log-entry ' + (type === 'warn' ? 'log-warn' : type === 'crit' ? 'log-crit' : '');
+        div.innerText = `> ${msg}`;
+        els.log.prepend(div);
+        if(els.log.children.length > 20) els.log.lastChild.remove();
+    }
+
+    function aiOptimize() {
+        log("Initiating Deep Clean Protocol...", "warn");
+        setTimeout(() => log("Killing background phantom processes..."), 800);
+        setTimeout(() => log("Suspending non-critical DOM elements..."), 1500);
+        setTimeout(() => {
+            log("OPTIMIZATION COMPLETE. Efficiency +15%", "success");
+            // "Улучшаем" виртуальный разряд
+            if(state.isDemo) state.dischargeRate = 0.1; 
+        }, 2500);
+    }
+
+    function startSimulation() {
+        state.isDemo = true;
+        state.level = 85;
+        log("Demo Mode Active.");
+        setInterval(() => {
+            render();
+            recordData();
+        }, 1000);
+    }
+
+    function toggleSimulation() {
+        if(state.isDemo) window.location.reload();
+        else startSimulation();
+    }
+
+    // Start
+    initBattery();
+
+</script>
+</body>
+</html>

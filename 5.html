@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gemini Neural Cam</title>
+    <style>
+        :root {
+            --ui-bg: rgba(0, 0, 0, 0.6);
+            --accent: #00ffcc;
+            --text: #fff;
+        }
+
+        body {
+            margin: 0;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            font-family: 'Segoe UI', sans-serif;
+            color: var(--text);
+        }
+
+        /* Видеопоток (скрыт, используется как источник) */
+        video {
+            display: none;
+        }
+
+        /* Основной экран видоискателя */
+        canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* Интерфейс поверх видео */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none; /* Пропускать клики сквозь оверлей */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Верхняя панель */
+        .top-bar {
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: auto;
+        }
+
+        .badge {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-shadow: 0 1px 2px black;
+        }
+
+        .ai-active {
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            background: rgba(0, 255, 204, 0.1);
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        /* Сетка "золотого сечения" */
+        .grid {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .grid-row {
+            flex: 1;
+            border-bottom: 1px solid rgba(255,255,255,0.15);
+            display: flex;
+        }
+        .grid-row:last-child { border-bottom: none; }
+        .grid-col {
+            flex: 1;
+            border-right: 1px solid rgba(255,255,255,0.15);
+        }
+        .grid-col:last-child { border-right: none; }
+
+        /* Нижняя панель управления */
+        .controls {
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+            padding: 30px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            pointer-events: auto;
+        }
+
+        /* Кнопка затвора */
+        .shutter-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: transparent;
+            border: 4px solid #fff;
+            position: relative;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .shutter-btn::after {
+            content: '';
+            position: absolute;
+            top: 5px; left: 5px; right: 5px; bottom: 5px;
+            background: #fff;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+        .shutter-btn:active { transform: scale(0.9); }
+        .shutter-btn:active::after { background: var(--accent); }
+
+        /* Слайдеры */
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 80px;
+        }
+        input[type=range] {
+            width: 100%;
+            accent-color: var(--accent);
+        }
+        label { font-size: 10px; text-align: center; color: #ccc; }
+
+        /* Фокус */
+        .focus-box {
+            position: absolute;
+            width: 60px; height: 60px;
+            border: 2px solid var(--accent);
+            transform: translate(-50%, -50%);
+            display: none;
+            animation: focusAnim 0.5s ease-out;
+        }
+        @keyframes focusAnim {
+            0% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <video id="video" autoplay playsinline></video>
+    
+    <canvas id="canvas"></canvas>
+
+    <div class="overlay">
+        <div class="grid">
+            <div class="grid-row"><div class="grid-col"></div><div class="grid-col"></div><div class="grid-col"></div></div>
+            <div class="grid-row"><div class="grid-col"></div><div class="grid-col"></div><div class="grid-col"></div></div>
+            <div class="grid-row"><div class="grid-col"></div><div class="grid-col"></div><div class="grid-col"></div></div>
+        </div>
+
+        <div class="top-bar">
+            <div class="badge ai-active" id="ai-badge">AI ENHANCE ON</div>
+            <div class="badge" id="res-badge">HD READY</div>
+        </div>
+
+        <div class="focus-box" id="focus-box"></div>
+
+        <div class="controls">
+            <div class="slider-group">
+                <label>Exp (Gamma)</label>
+                <input type="range" id="exposure" min="0.5" max="2.0" step="0.1" value="1.2">
+            </div>
+
+            <div class="shutter-btn" id="shutter"></div>
+
+            <div class="slider-group">
+                <label>Vibrance</label>
+                <input type="range" id="vibrance" min="0" max="2.0" step="0.1" value="1.4">
+            </div>
+        </div>
+    </div>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { alpha: false }); // Optimisation
+    const shutter = document.getElementById('shutter');
+    const focusBox = document.getElementById('focus-box');
+    
+    // Элементы управления
+    const exposureSlider = document.getElementById('exposure');
+    const vibranceSlider = document.getElementById('vibrance');
+
+    // Настройки
+    let width = 0, height = 0;
+    let isRunning = false;
+
+    // 1. Инициализация камеры (запрос максимального разрешения)
+    async function startCamera() {
+        try {
+            const constraints = {
+                audio: false,
+                video: {
+                    facingMode: 'environment', // Задняя камера
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    frameRate: { ideal: 30 }
+                }
+            };
+
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            video.srcObject = stream;
+            
+            // Ждем загрузки метаданных, чтобы установить размеры канваса
+            video.onloadedmetadata = () => {
+                width = video.videoWidth;
+                height = video.videoHeight;
+                canvas.width = width;
+                canvas.height = height;
+                document.getElementById('res-badge').innerText = `${width}x${height}`;
+                isRunning = true;
+                processFrame();
+            };
+        } catch (err) {
+            alert("Ошибка доступа к камере: " + err);
+        }
+    }
+
+    // 2. Цикл обработки кадров (Post-Processing Engine)
+    function processFrame() {
+        if (!isRunning) return;
+
+        // Рисуем сырой кадр
+        ctx.drawImage(video, 0, 0, width, height);
+
+        // --- УЛУЧШЕНИЕ КАЧЕСТВА ---
+        // Используем CSS-фильтры внутри Canvas для скорости (GPU ускорение)
+        
+        const brightness = exposureSlider.value; // Имитация экспозиции
+        const saturate = vibranceSlider.value;   // Насыщенность (против блеклости)
+        const contrast = 1.1;                    // Легкий контраст для четкости
+        
+        // Применяем фильтр к контексту
+        // contrast(110%) - убирает "туман" старых линз
+        // saturate(...) - оживляет цвета
+        ctx.filter = `contrast(${contrast}) brightness(${brightness}) saturate(${saturate})`;
+        
+        // Перерисовываем кадр с фильтром поверх самого себя
+        ctx.drawImage(video, 0, 0, width, height);
+        
+        // Сброс фильтра для следующего кадра
+        ctx.filter = 'none';
+
+        requestAnimationFrame(processFrame);
+    }
+
+    // 3. Фокусировка по клику (Визуальная симуляция)
+    canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        // Пересчет координат клика
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        focusBox.style.left = e.clientX + 'px';
+        focusBox.style.top = e.clientY + 'px';
+        focusBox.style.display = 'block';
+
+        // Перезапуск анимации
+        focusBox.style.animation = 'none';
+        focusBox.offsetHeight; /* trigger reflow */
+        focusBox.style.animation = 'focusAnim 0.5s ease-out';
+
+        setTimeout(() => { focusBox.style.display = 'none'; }, 1000);
+        
+        // Попытка реальной фокусировки (только Chrome Android)
+        const track = video.srcObject.getVideoTracks()[0];
+        if (track.getCapabilities().focusMode) {
+            track.applyConstraints({
+                advanced: [{ focusMode: 'continuous' }]
+            }).catch(e => console.log('Focus not supported'));
+        }
+    });
+
+    // 4. Сделать фото
+    shutter.addEventListener('click', () => {
+        // Звук затвора (симуляция)
+        canvas.style.opacity = 0.5;
+        setTimeout(() => canvas.style.opacity = 1, 100);
+
+        // Скачивание
+        const link = document.createElement('a');
+        link.download = `gemini-cam-${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png', 1.0); // Максимальное качество
+        link.click();
+    });
+
+    // Запуск при загрузке
+    startCamera();
+
+</script>
+</body>
+</html>

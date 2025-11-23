@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Hardware Diagnostic</title>
+    <style>
+        :root {
+            --bg: #050505;
+            --panel: #111;
+            --accent: #00f3ff; /* Cyan */
+            --warn: #ffb700;
+            --crit: #ff004c;
+            --text: #c0c0c0;
+            --font: 'Courier New', monospace;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            margin: 0;
+            padding: 10px;
+            overflow-x: hidden;
+        }
+
+        h2, h3 { color: #fff; margin: 0; text-transform: uppercase; letter-spacing: 2px; }
+
+        .dashboard {
+            display: grid;
+            gap: 15px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid #333;
+            border-left: 4px solid var(--accent);
+            padding: 15px;
+            border-radius: 4px;
+            position: relative;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+
+        /* --- SENSORS VISUALIZATION --- */
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 5px;
+            font-size: 10px;
+            text-align: center;
+        }
+        .sensor-val {
+            background: #222;
+            padding: 5px;
+            color: var(--accent);
+        }
+
+        /* --- PROGRESS BARS --- */
+        .bar-container {
+            background: #222;
+            height: 10px;
+            width: 100%;
+            margin-top: 5px;
+            position: relative;
+        }
+        .bar-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.2s;
+        }
+
+        /* --- CPU/GPU ANIMATION --- */
+        #render-canvas {
+            width: 100%;
+            height: 100px;
+            background: #000;
+            border: 1px dashed #444;
+        }
+
+        /* --- LOGS --- */
+        .terminal {
+            background: #000;
+            height: 150px;
+            overflow-y: auto;
+            font-size: 11px;
+            padding: 10px;
+            border: 1px solid #333;
+            color: var(--accent);
+        }
+        .log-line { margin-bottom: 2px; }
+        .log-warn { color: var(--warn); }
+        .log-err { color: var(--crit); }
+
+        /* --- BUTTON --- */
+        .btn {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            width: 100%;
+            padding: 15px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            text-transform: uppercase;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+        .btn:disabled { background: #333; color: #555; }
+        .btn:active { transform: scale(0.98); }
+
+        /* STATUS BADGES */
+        .badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 2px;
+            background: #333;
+        }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <div style="text-align:center; margin-bottom: 10px;">
+        <h2>Sys::Diag_AI_v1</h2>
+        <div style="font-size: 10px; color: #555;">Hardware Heuristic Analyzer</div>
+    </div>
+
+    <div class="card">
+        <div class="header">
+            <h3>CPU / CORE</h3>
+            <span class="badge" id="cpu-cores">DETECTING...</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px;">
+            <span>Load Stress Test:</span>
+            <span id="cpu-status">IDLE</span>
+        </div>
+        <div class="bar-container">
+            <div class="bar-fill" id="cpu-bar"></div>
+        </div>
+        <div style="font-size: 10px; color: #666; margin-top: 5px;">
+            Calculated Heat Index: <span id="heat-index">LOW</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="header">
+            <h3>GPU / VISUAL</h3>
+            <span class="badge" id="fps-counter">0 FPS</span>
+        </div>
+        <canvas id="render-canvas"></canvas>
+    </div>
+
+    <div class="card">
+        <div class="header">
+            <h3>SENSORS HUB</h3>
+            <span class="badge" id="sensor-status">WAITING</span>
+        </div>
+        <div style="font-size: 10px; margin-bottom: 5px;">ACCELEROMETER (m/s²)</div>
+        <div class="sensor-grid">
+            <div class="sensor-val" id="acc-x">X: 0</div>
+            <div class="sensor-val" id="acc-y">Y: 0</div>
+            <div class="sensor-val" id="acc-z">Z: 0</div>
+        </div>
+        <div style="font-size: 10px; margin: 5px 0;">GYROSCOPE (rad/s)</div>
+        <div class="sensor-grid">
+            <div class="sensor-val" id="gyro-a">α: 0</div>
+            <div class="sensor-val" id="gyro-b">β: 0</div>
+            <div class="sensor-val" id="gyro-g">γ: 0</div>
+        </div>
+    </div>
+
+    <div class="terminal" id="console">
+        <div class="log-line">> System Ready.</div>
+        <div class="log-line">> Press START to initiate AI Diagnostic.</div>
+    </div>
+
+    <button class="btn" onclick="startDiagnostics()" id="start-btn">RUN DIAGNOSTICS</button>
+</div>
+
+<script>
+    // --- SYSTEM CONFIG ---
+    const consoleDiv = document.getElementById('console');
+    const cpuBar = document.getElementById('cpu-bar');
+    const canvas = document.getElementById('render-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let isRunning = false;
+
+    // --- 1. SENSORS MODULE ---
+    function initSensors() {
+        if (window.DeviceMotionEvent) {
+            window.addEventListener('devicemotion', (event) => {
+                const acc = event.accelerationIncludingGravity;
+                if(acc) {
+                    document.getElementById('acc-x').innerText = `X: ${acc.x?.toFixed(1) || 0}`;
+                    document.getElementById('acc-y').innerText = `Y: ${acc.y?.toFixed(1) || 0}`;
+                    document.getElementById('acc-z').innerText = `Z: ${acc.z?.toFixed(1) || 0}`;
+                }
+            });
+            log("Sensor API hooked: Accelerometer OK.");
+            document.getElementById('sensor-status').innerText = "ACTIVE";
+            document.getElementById('sensor-status').style.color = "var(--accent)";
+        } else {
+            log("Sensor API not supported or denied.", "log-err");
+        }
+
+        if (window.DeviceOrientationEvent) {
+             window.addEventListener('deviceorientation', (event) => {
+                document.getElementById('gyro-a').innerText = `α: ${event.alpha?.toFixed(0) || 0}`;
+                document.getElementById('gyro-b').innerText = `β: ${event.beta?.toFixed(0) || 0}`;
+                document.getElementById('gyro-g').innerText = `γ: ${event.gamma?.toFixed(0) || 0}`;
+             });
+        }
+    }
+
+    // --- 2. CPU STRESS TEST (FLOPS ESTIMATOR) ---
+    async function cpuStressTest() {
+        log("Starting CPU Stress Test (Matrix Calcs)...");
+        document.getElementById('cpu-status').innerText = "STRESSING...";
+        document.getElementById('cpu-status').style.color = "var(--warn)";
+        
+        const start = performance.now();
+        let primes = 0;
+        
+        // Симуляция тяжелой нагрузки
+        // В реальности это нагревает CPU
+        const iterations = 5000000; 
+        
+        return new Promise(resolve => {
+            setTimeout(() => {
+                for (let i = 0; i < iterations; i++) {
+                    // Просто тяжелая математика
+                    Math.sqrt(i) * Math.sin(i);
+                }
+                const end = performance.now();
+                const duration = end - start;
+                
+                // Оценка производительности
+                const score = Math.round(iterations / duration);
+                
+                // "Термальная" эмуляция (чем дольше тест, тем выше индекс нагрузки)
+                let heat = "NORMAL";
+                let heatColor = "#0f0";
+                if(duration > 500) { heat = "WARM"; heatColor = "yellow"; }
+                if(duration > 1000) { heat = "HIGH LOAD"; heatColor = "red"; }
+                
+                document.getElementById('heat-index').innerText = heat;
+                document.getElementById('heat-index').style.color = heatColor;
+                
+                cpuBar.style.width = "100%";
+                document.getElementById('cpu-status').innerText = "DONE";
+                log(`CPU Logic Finished. Score: ${score} pts`);
+                
+                resolve(score);
+            }, 100); // Даем UI обновиться перед фризом
+        });
+    }
+
+    // --- 3. GPU RENDER TEST ---
+    function gpuStressTest() {
+        log("Initializing WebGL/Canvas stress...");
+        return new Promise(resolve => {
+            let frames = 0;
+            let startTime = performance.now();
+            
+            function draw() {
+                // Рисуем 500 случайных частиц каждый кадр
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                ctx.fillRect(0,0, canvas.width, canvas.height);
+                
+                for(let i=0; i<500; i++) {
+                    ctx.fillStyle = `hsl(${Math.random()*360}, 100%, 50%)`;
+                    ctx.beginPath();
+                    ctx.arc(
+                        Math.random() * canvas.width,
+                        Math.random() * canvas.height,
+                        Math.random() * 5, 0, Math.PI*2
+                    );
+                    ctx.fill();
+                }
+                
+                frames++;
+                const current = performance.now();
+                
+                if (current - startTime < 2000) { // Тест идет 2 секунды
+                    requestAnimationFrame(draw);
+                    document.getElementById('fps-counter').innerText = 
+                        Math.round(frames / ((current - startTime)/1000)) + " FPS";
+                } else {
+                    const avgFps = Math.round(frames / 2);
+                    resolve(avgFps);
+                }
+            }
+            draw();
+        });
+    }
+
+    // --- MAIN CONTROLLER ---
+    async function startDiagnostics() {
+        if(isRunning) return;
+        isRunning = true;
+        const btn = document.getElementById('start-btn');
+        btn.disabled = true;
+        btn.innerText = "SCANNING...";
+
+        // 1. System Info
+        const cores = navigator.hardwareConcurrency || "N/A";
+        document.getElementById('cpu-cores').innerText = `${cores} LOGICAL CORES`;
+        log(`System: ${cores} Cores detected.`);
+        log(`Platform: ${navigator.platform}`);
+
+        // 2. CPU Test
+        const cpuScore = await cpuStressTest();
+        
+        // 3. GPU Test
+        const gpuFps = await gpuStressTest();
+        log(`GPU Visual Test: ${gpuFps} FPS avg`);
+
+        // 4. Analysis
+        log("--------------------------------");
+        log("AI ANALYSIS REPORT:");
+        
+        let health = "OPTIMAL";
+        if (gpuFps < 15) health = "SLUGGISH (Check Bg Apps)";
+        if (gpuFps < 5) health = "CRITICAL (Hardware Lag)";
+        
+        log(`> Hardware Integrity: ${health}`);
+        
+        if (cpuScore > 10000) log("> CPU: High Performance Class", "log-warn");
+        else if (cpuScore > 3000) log("> CPU: Mid-Range Performance");
+        else log("> CPU: Low-End / Throttling Detected", "log-err");
+
+        btn.innerText = "DIAGNOSTIC COMPLETE";
+        btn.style.background = "#333";
+    }
+
+    // --- UTILS ---
+    function log(msg, type='') {
+        const div = document.createElement('div');
+        div.className = `log-line ${type}`;
+        div.innerText = `> ${msg}`;
+        consoleDiv.appendChild(div);
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+
+    // Init Sensors on load
+    initSensors();
+
+    // Canvas resize
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+
+</script>
+</body>
+</html>

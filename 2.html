@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Gemini Minimal OS</title>
+    <style>
+        /* --- 1. ВИДЕОДРАЙВЕР (CSS) --- */
+        body {
+            background-color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Courier New', monospace;
+        }
+
+        #monitor {
+            width: 800px;
+            height: 600px;
+            background-color: #000;
+            border: 20px solid #333;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        #screen {
+            color: #0f0; /* Зеленый люминофор */
+            white-space: pre-wrap;
+            text-shadow: 0 0 2px #0f0;
+            height: 100%;
+            overflow-y: auto;
+            font-size: 16px;
+            line-height: 1.2;
+        }
+
+        /* Курсор */
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 18px;
+            background-color: #0f0;
+            animation: blink 1s step-end infinite;
+            vertical-align: bottom;
+        }
+
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* Скрытый инпут для захвата ввода */
+        #keyboard-driver {
+            position: absolute;
+            opacity: 0;
+            top: -1000px;
+        }
+
+        /* Эффект старого экрана */
+        #monitor::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="monitor">
+    <div id="screen"></div>
+</div>
+<input type="text" id="keyboard-driver" autofocus autocomplete="off">
+
+<script>
+    // --- 2. СТРУКТУРА И ЯДРО (JS) ---
+
+    const screen = document.getElementById('screen');
+    const keyboard = document.getElementById('keyboard-driver');
+    
+    // Виртуальная файловая система с реальным кодом для ISO
+    const fileSystem = {
+        'readme': 'Добро пожаловать в MinimalOS (Web Edition).\nЗдесь можно увидеть код реального ядра.',
+        
+        'kernel.c': `// --- REAL KERNEL CODE ---\n\nvoid kmain(void) {\n    const char *str = "Hello from Gemini Kernel!";\n    char *vidptr = (char*)0xb8000;\n    unsigned int i = 0;\n    unsigned int j = 0;\n\n    // Очистка экрана\n    while(j < 80 * 25 * 2) {\n        vidptr[j] = ' '; \n        vidptr[j+1] = 0x07;\n        j = j + 2;\n    }\n\n    j = 0;\n    // Вывод строки\n    while(str[j] != '\\0') {\n        vidptr[i] = str[j];\n        vidptr[i+1] = 0x07;\n        ++j;\n        i = i + 2;\n    }\n    return;\n}`,
+        
+        'boot.asm': `; --- REAL BOOTLOADER CODE ---\nbits 32\nsection .text\n    align 4\n    dd 0x1BADB002            ; Magic number\n    dd 0x00                  ; Flags\n    dd - (0x1BADB002 + 0x00) ; Checksum\n\nglobal start\nextern kmain\n\nstart:\n    cli \n    call kmain\n    hlt`,
+        
+        'build.sh': `# --- BUILD SCRIPT ---\nnasm -f elf32 boot.asm -o boot.o\ngcc -m32 -c kernel.c -o kernel.o\nld -m elf_i386 -T linker.ld -o kernel.bin boot.o kernel.o`
+    };
+
+    let commandHistory = [];
+    let isBooting = true;
+
+    // Функция вывода на экран (VGA driver)
+    function print(text, newLine = true) {
+        const line = document.createElement('span');
+        line.textContent = text + (newLine ? '\n' : '');
+        screen.appendChild(line);
+        screen.scrollTop = screen.scrollHeight;
+    }
+
+    // --- 3. ЗАГРУЗЧИК (Bootloader Sequence) ---
+    async function boot() {
+        print("BIOS Check... OK");
+        await delay(500);
+        print("Loading Bootloader (Grub simulation)...");
+        await delay(800);
+        print("Decompressing Kernel...", false);
+        await delay(1000);
+        print(" Done.");
+        await delay(400);
+        print("Initializing Memory Manager... 1024MB OK");
+        print("Mounting Virtual FS... OK");
+        print("----------------------------------------");
+        print("GEMINI MINIMAL OS v1.0 READY.");
+        print("Type 'help' to see commands.");
+        print("----------------------------------------");
+        newPrompt();
+        isBooting = false;
+    }
+
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // --- 4. SHELL (Командная оболочка) ---
+    
+    function newPrompt() {
+        const prompt = document.createElement('span');
+        prompt.textContent = 'root@gemini:~# ';
+        screen.appendChild(prompt);
+        
+        const inputSpan = document.createElement('span');
+        inputSpan.id = 'current-input';
+        screen.appendChild(inputSpan);
+        
+        const cursor = document.createElement('span');
+        cursor.className = 'cursor';
+        screen.appendChild(cursor);
+    }
+
+    // Обработчик ввода
+    keyboard.addEventListener('input', (e) => {
+        if (isBooting) return;
+        const currentInput = document.getElementById('current-input');
+        currentInput.textContent = keyboard.value;
+    });
+
+    keyboard.addEventListener('keydown', (e) => {
+        if (isBooting) { e.preventDefault(); return; }
+        
+        if (e.key === 'Enter') {
+            const cmd = keyboard.value.trim();
+            // Удаляем курсор со старой строки
+            document.querySelector('.cursor').remove(); 
+            print('', true); // Перенос строки
+            
+            executeCommand(cmd);
+            
+            keyboard.value = '';
+            if (cmd !== 'reboot') newPrompt();
+        }
+    });
+
+    // Парсер команд
+    function executeCommand(rawCmd) {
+        const parts = rawCmd.split(' ');
+        const cmd = parts[0].toLowerCase();
+        const arg = parts[1];
+
+        switch (cmd) {
+            case 'help':
+                print("Доступные команды:");
+                print("  ls           - Список файлов");
+                print("  cat [файл]   - Показать содержимое файла (код ядра)");
+                print("  clear        - Очистить экран");
+                print("  reboot       - Перезагрузка");
+                print("  whoami       - Инфо о пользователе");
+                break;
+            case 'ls':
+                print("Файлы в системе:");
+                Object.keys(fileSystem).forEach(f => print("  " + f));
+                break;
+            case 'cat':
+                if (fileSystem[arg]) {
+                    print(`--- Содержимое ${arg} ---`);
+                    print(fileSystem[arg]);
+                    print("-------------------------");
+                } else {
+                    print(arg ? `Файл не найден: ${arg}` : "Использование: cat [имя_файла]");
+                }
+                break;
+            case 'clear':
+                screen.innerHTML = '';
+                break;
+            case 'whoami':
+                print("root (Gemini Virtual User)");
+                break;
+            case 'reboot':
+                screen.innerHTML = '';
+                isBooting = true;
+                boot();
+                break;
+            case '':
+                break;
+            default:
+                print(`Неизвестная команда: ${cmd}`);
+        }
+    }
+
+    // Клик в любом месте возвращает фокус на скрытый инпут
+    document.addEventListener('click', () => keyboard.focus());
+    
+    // Запуск
+    boot();
+
+</script>
+</body>
+</html>

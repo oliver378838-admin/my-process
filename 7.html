@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LineageOS Web VM</title>
+    <style>
+        /* --- 1. SYSTEM UI / LINEAGE STYLE --- */
+        :root {
+            --bg: #121212; /* Dark theme */
+            --accent: #167c80; /* Lineage Teal */
+            --surface: #1e1e1e;
+            --text: #ffffff;
+            --nav-height: 48px;
+            --status-height: 24px;
+        }
+
+        body {
+            margin: 0;
+            background-color: #000;
+            color: var(--text);
+            font-family: 'Roboto', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Корпус "Телефона" */
+        #device-screen {
+            width: 100%;
+            max-width: 412px; /* Pixel size */
+            height: 100%;
+            background: var(--bg);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* Status Bar */
+        .status-bar {
+            height: var(--status-height);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 12px;
+            background: rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+
+        /* Launcher / Desktop */
+        #desktop {
+            flex: 1;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+            gap: 15px;
+            align-items: start;
+        }
+
+        .app-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .icon-circle {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%; /* Lineage circle icons */
+            background: var(--surface);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            transition: 0.2s;
+        }
+        .icon-circle:active { transform: scale(0.9); background: var(--accent); }
+        .app-name { font-size: 12px; color: #ddd; text-shadow: 0 1px 2px black; }
+
+        /* Navigation Bar */
+        .nav-bar {
+            height: var(--nav-height);
+            background: #000;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            font-size: 20px;
+            color: #ccc;
+        }
+        .nav-btn { padding: 10px 20px; cursor: pointer; }
+        .nav-btn:active { color: #fff; }
+
+        /* --- 2. WINDOW MANAGER (Apps) --- */
+        .window {
+            position: absolute;
+            top: var(--status-height);
+            bottom: var(--nav-height);
+            left: 0; right: 0;
+            background: var(--bg);
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            z-index: 50;
+        }
+        .window.open { transform: translateY(0); }
+
+        /* Terminal App Style */
+        .terminal-content {
+            flex: 1;
+            background: #1e1e1e;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            padding: 10px;
+            overflow-y: auto;
+            font-size: 14px;
+        }
+        .input-line { display: flex; margin-top: 5px; }
+        .prompt { color: var(--accent); margin-right: 5px; font-weight: bold; }
+        input.cmd-input {
+            background: transparent;
+            border: none;
+            color: #fff;
+            flex: 1;
+            font-family: inherit;
+            outline: none;
+        }
+
+        /* Settings App Style */
+        .settings-content {
+            padding: 15px;
+        }
+        .setting-item {
+            padding: 15px 0;
+            border-bottom: 1px solid #333;
+        }
+        .setting-header { font-size: 18px; color: var(--accent); margin-bottom: 10px; }
+
+    </style>
+</head>
+<body>
+
+<div id="device-screen">
+    <div class="status-bar">
+        <span id="clock">12:00</span>
+        <div style="display:flex; gap:5px;">
+            <span>LTE</span>
+            <span>🔋 85%</span>
+        </div>
+    </div>
+
+    <div id="desktop">
+        <div class="app-icon" onclick="openApp('terminal')">
+            <div class="icon-circle" style="background:#222;">💻</div>
+            <span class="app-name">Termux</span>
+        </div>
+        <div class="app-icon" onclick="openApp('files')">
+            <div class="icon-circle" style="background:#f9a825;">📁</div>
+            <span class="app-name">Файлы</span>
+        </div>
+        <div class="app-icon" onclick="openApp('settings')">
+            <div class="icon-circle" style="background:#546e7a;">⚙️</div>
+            <span class="app-name">Settings</span>
+        </div>
+        <div class="app-icon" onclick="alert('Camera module not found')">
+            <div class="icon-circle" style="background:#424242;">📸</div>
+            <span class="app-name">Camera</span>
+        </div>
+    </div>
+
+    <div id="app-terminal" class="window">
+        <div style="background:#333; padding:10px; font-weight:bold;">Termux (Lineage Shell)</div>
+        <div class="terminal-content" id="term-output" onclick="document.getElementById('cmd').focus()">
+            <div>LineageOS 21 (Android 14) [Virtual]</div>
+            <div>Type 'help' for commands.</div>
+            <br>
+            <div class="input-line">
+                <span class="prompt" id="term-prompt">u0_a155@lineage:/ $</span>
+                <input type="text" class="cmd-input" id="cmd" autocomplete="off">
+            </div>
+        </div>
+    </div>
+
+    <div id="app-settings" class="window">
+        <div style="background:#333; padding:15px; font-weight:bold;">Настройки</div>
+        <div class="settings-content">
+            <div class="setting-header">О телефоне</div>
+            <div class="setting-item">
+                <div style="font-size:14px;">Имя устройства</div>
+                <div style="color:#aaa; font-size:12px;">LineageOS Virtual</div>
+            </div>
+            <div class="setting-item">
+                <div style="font-size:14px;">Версия Android</div>
+                <div style="color:#aaa; font-size:12px;">14 (UpsideDownCake)</div>
+            </div>
+            <div class="setting-item">
+                <div style="font-size:14px;">Процессор</div>
+                <div style="color:#aaa; font-size:12px;">Virtual Snapdragon 8 Gen 2</div>
+            </div>
+        </div>
+    </div>
+
+     <div id="app-files" class="window">
+        <div style="background:#333; padding:15px; font-weight:bold;">Файловый менеджер</div>
+        <div class="settings-content" id="file-browser-ui">
+            </div>
+    </div>
+
+    <div class="nav-bar">
+        <div class="nav-btn" onclick="goBack()">◀</div>
+        <div class="nav-btn" onclick="goHome()">●</div>
+        <div class="nav-btn" onclick="showRecents()">■</div>
+    </div>
+</div>
+
+<script>
+    // --- 1. CORE OS LOGIC ---
+    
+    // Часы
+    setInterval(() => {
+        const now = new Date();
+        document.getElementById('clock').innerText = 
+            now.getHours().toString().padStart(2,'0') + ':' + 
+            now.getMinutes().toString().padStart(2,'0');
+    }, 1000);
+
+    // Управление окнами
+    let currentApp = null;
+
+    function openApp(id) {
+        const app = document.getElementById(`app-${id}`);
+        if(app) {
+            app.classList.add('open');
+            currentApp = app;
+            if(id === 'terminal') document.getElementById('cmd').focus();
+            if(id === 'files') renderFileManager(currentPath);
+        }
+    }
+
+    function goHome() {
+        document.querySelectorAll('.window').forEach(w => w.classList.remove('open'));
+        currentApp = null;
+    }
+
+    function goBack() {
+        if(currentApp) {
+            currentApp.classList.remove('open');
+            currentApp = null;
+        }
+    }
+    
+    function showRecents() {
+        alert("Нет запущенных фоновых задач (кроме ядра)");
+    }
+
+    // --- 2. VIRTUAL FILE SYSTEM (VFS) ---
+    
+    // Структура файловой системы (JSON)
+    const fileSystem = {
+        name: "root",
+        type: "dir",
+        children: {
+            "sdcard": {
+                type: "dir",
+                children: {
+                    "Download": { type: "dir", children: { "photo.jpg": { type: "file" } } },
+                    "DCIM": { type: "dir", children: {} },
+                    "Music": { type: "dir", children: {} },
+                    "notes.txt": { type: "file", content: "To-do list: Install GApps" }
+                }
+            },
+            "system": {
+                type: "dir",
+                children: {
+                    "build.prop": { type: "file", content: "ro.product.model=LineageVirtual\nro.build.version=14" },
+                    "bin": { type: "dir", children: {} }
+                }
+            },
+            "data": { type: "dir", children: {} }
+        }
+    };
+
+    let currentPath = ["sdcard"]; // Начинаем в /sdcard
+
+    // Помощник: Получить объект папки по пути
+    function getDirByPath(pathArray) {
+        let current = fileSystem;
+        for (const segment of pathArray) {
+            if (current.children && current.children[segment]) {
+                current = current.children[segment];
+            } else {
+                return null;
+            }
+        }
+        return current;
+    }
+
+    // --- 3. TERMINAL SHELL LOGIC ---
+
+    const termOutput = document.getElementById('term-output');
+    const cmdInput = document.getElementById('cmd');
+    const promptSpan = document.getElementById('term-prompt');
+
+    function updatePrompt() {
+        const pathStr = "/" + currentPath.join("/");
+        promptSpan.innerText = `u0_a155@lineage:${pathStr} $`;
+    }
+
+    function print(text, color = "#ccc") {
+        const div = document.createElement('div');
+        div.textContent = text;
+        div.style.color = color;
+        termOutput.insertBefore(div, termOutput.lastElementChild);
+        div.scrollIntoView();
+    }
+
+    cmdInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            const rawCmd = this.value.trim();
+            const args = rawCmd.split(' ');
+            const cmd = args[0];
+            
+            // Эхо команды
+            print(promptSpan.innerText + " " + rawCmd, "#fff");
+            this.value = '';
+
+            // Обработка команд
+            switch(cmd) {
+                case 'help':
+                    print("Available commands:");
+                    print("  ls      - List directory");
+                    print("  cd [dir]- Change directory");
+                    print("  cat [f] - Read file");
+                    print("  pwd     - Print working directory");
+                    print("  uname   - System info");
+                    print("  clear   - Clear screen");
+                    print("  reboot  - Restart UI");
+                    break;
+
+                case 'ls':
+                    const dir = getDirByPath(currentPath);
+                    if(dir && dir.children) {
+                        const items = Object.keys(dir.children).map(name => {
+                            const isDir = dir.children[name].type === 'dir';
+                            return isDir ? name + "/" : name;
+                        });
+                        print(items.join("  "), "#81d4fa");
+                    } else {
+                        print("Error: Cannot read directory", "red");
+                    }
+                    break;
+
+                case 'cd':
+                    if(!args[1]) {
+                        currentPath = ["sdcard"]; // Home
+                    } else if (args[1] === "..") {
+                        if(currentPath.length > 0) currentPath.pop();
+                    } else {
+                        const target = args[1].replace("/", ""); // Упрощено
+                        const currentDir = getDirByPath(currentPath);
+                        if (currentDir.children[target] && currentDir.children[target].type === "dir") {
+                            currentPath.push(target);
+                        } else {
+                            print(`cd: ${target}: No such file or directory`, "red");
+                        }
+                    }
+                    updatePrompt();
+                    break;
+
+                case 'cat':
+                    if(!args[1]) { print("Usage: cat [filename]"); break; }
+                    const d = getDirByPath(currentPath);
+                    const f = d.children[args[1]];
+                    if (f && f.type === 'file') {
+                        print(f.content || "[Binary data]");
+                    } else {
+                        print("File not found", "red");
+                    }
+                    break;
+
+                case 'pwd':
+                    print("/" + currentPath.join("/"));
+                    break;
+                
+                case 'uname':
+                    print("Linux localhost 5.10.101-android14 #1 SMP PREEMPT", "#aaa");
+                    break;
+
+                case 'clear':
+                    // Просто удаляем все div кроме последнего (инпута)
+                    while(termOutput.children.length > 1) {
+                        termOutput.removeChild(termOutput.firstChild);
+                    }
+                    break;
+                
+                case 'reboot':
+                    location.reload();
+                    break;
+
+                case '':
+                    break;
+
+                default:
+                    print(`/system/bin/sh: ${cmd}: not found`, "red");
+            }
+            // Всегда скроллим вниз
+            updatePrompt();
+        }
+    });
+
+    // --- 4. FILE MANAGER UI LOGIC ---
+    function renderFileManager(path) {
+        const container = document.getElementById('file-browser-ui');
+        container.innerHTML = `<div style='padding-bottom:10px; border-bottom:1px solid #444'>Path: /${path.join("/")}</div>`;
+        
+        // Кнопка назад
+        if(path.length > 0) {
+            const upDiv = document.createElement('div');
+            upDiv.className = 'setting-item';
+            upDiv.innerHTML = "📁 <b>.. (Up)</b>";
+            upDiv.onclick = () => {
+                currentPath.pop();
+                renderFileManager(currentPath);
+            };
+            container.appendChild(upDiv);
+        }
+
+        const dir = getDirByPath(path);
+        if(!dir) return;
+
+        Object.keys(dir.children).forEach(key => {
+            const item = dir.children[key];
+            const el = document.createElement('div');
+            el.className = 'setting-item';
+            
+            if(item.type === 'dir') {
+                el.innerHTML = `📁 <b>${key}</b>`;
+                el.onclick = () => {
+                    currentPath.push(key);
+                    renderFileManager(currentPath);
+                };
+            } else {
+                el.innerHTML = `📄 ${key} <span style='color:#666; font-size:10px'>${item.content ? item.content.length + "B" : "0B"}</span>`;
+                el.onclick = () => alert(`Content: ${item.content || "Empty"}`);
+            }
+            container.appendChild(el);
+        });
+    }
+
+    // Init state
+    updatePrompt();
+
+</script>
+</body>
+</html>

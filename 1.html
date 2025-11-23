@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LM386 USB Amplifier Schematic</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #2d2d2d;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        h1 { color: #4caf50; border-bottom: 2px solid #4caf50; padding-bottom: 10px; }
+        h2 { color: #64b5f6; margin-top: 30px; }
+        .schematic-box {
+            background-color: #ffffff; /* White background for schematic readability */
+            padding: 20px;
+            border-radius: 5px;
+            overflow-x: auto;
+            text-align: center;
+            margin: 20px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: #333;
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #444;
+            text-align: left;
+        }
+        th { background-color: #388e3c; color: white; }
+        .note {
+            background-color: #3e2723;
+            border-left: 5px solid #ff5722;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        /* SVG Styles */
+        text { font-family: monospace; font-size: 14px; }
+        .wire { stroke: #000; stroke-width: 2; fill: none; }
+        .component { fill: none; stroke: #000; stroke-width: 2; }
+        .pin-label { font-size: 10px; fill: #d32f2f; }
+        .label { font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Усилитель звука на LM386 (питание USB 5V)</h1>
+    
+    <p>Ниже представлена принципиальная схема простого, но надежного моно-усилителя мощностью около 0.5 - 1 Ватт. Питание осуществляется от стандартного USB-порта компьютера или зарядки (5 Вольт).</p>
+
+    <div class="schematic-box">
+        <svg width="700" height="400" viewBox="0 0 700 400" xmlns="http://www.w3.org/2000/svg">
+            
+            <path d="M 300 100 L 300 300 L 450 200 Z" fill="#e3f2fd" stroke="#1565c0" stroke-width="3" />
+            <text x="320" y="205" font-size="20" fill="#1565c0">LM386</text>
+            
+            <text x="305" y="140" class="pin-label">2 (-)</text>
+            <text x="305" y="260" class="pin-label">3 (+)</text>
+            <text x="360" y="110" class="pin-label">6 (Vs)</text>
+            <text x="360" y="290" class="pin-label">4 (GND)</text>
+            <text x="440" y="200" class="pin-label">5 (OUT)</text>
+            <text x="330" y="125" class="pin-label">1 (Gain)</text>
+            <text x="330" y="275" class="pin-label">8 (Gain)</text>
+
+            <circle cx="50" cy="260" r="5" fill="black"/>
+            <text x="20" y="265" class="label">Audio IN</text>
+            
+            <path d="M 100 220 L 100 300 L 120 280 L 100 260 L 120 240 L 100 220" class="component" />
+            <line x1="80" y1="260" x2="100" y2="260" class="wire"/> <line x1="100" y1="300" x2="100" y2="340" class="wire"/> <line x1="110" y1="260" x2="180" y2="260" class="wire"/> <text x="70" y="230" class="label">VR1 (10k)</text>
+            
+            <line x1="180" y1="250" x2="180" y2="270" class="wire"/>
+            <line x1="190" y1="250" x2="190" y2="270" class="wire"/>
+            <line x1="190" y1="260" x2="300" y2="260" class="wire"/> <text x="170" y="240" class="label">C1 (10µF)</text>
+
+            <line x1="300" y1="140" x2="250" y2="140" class="wire"/>
+            <line x1="250" y1="140" x2="250" y2="340" class="wire"/>
+
+            <text x="340" y="30" class="label" fill="#d32f2f">+5V USB</text>
+            <line x1="375" y1="40" x2="375" y2="118" class="wire"/> <line x1="375" y1="60" x2="420" y2="60" class="wire"/>
+            <line x1="420" y1="60" x2="420" y2="70" class="wire"/> <rect x="410" y="70" width="20" height="5" fill="white" stroke="black"/> <line x1="420" y1="75" x2="420" y2="100" class="wire"/> <line x1="420" y1="100" x2="420" y2="340" class="wire"/> <text x="430" y="85" class="label">C2 (220µF)</text>
+
+            <line x1="450" y1="200" x2="500" y2="200" class="wire"/>
+            
+            <line x1="500" y1="190" x2="500" y2="210" class="wire"/>
+            <rect x="500" y="190" width="5" height="20" fill="white" stroke="black"/>
+            <line x1="510" y1="190" x2="510" y2="210" class="wire"/>
+            <text x="490" y="180" class="label">C3 (220µF)</text>
+            
+            <line x1="510" y1="200" x2="600" y2="200" class="wire"/>
+            
+            <path d="M 600 180 L 600 220 L 620 220 L 640 240 L 640 160 L 620 180 Z" class="component"/>
+            <text x="600" y="150" class="label">Speaker 8Ω</text>
+            <line x1="600" y1="220" x2="600" y2="340" class="wire"/> <line x1="470" y1="200" x2="470" y2="250" class="wire"/>
+            <rect x="460" y="250" width="20" height="40" class="component"/> <text x="485" y="270" class="label">R1(10Ω)</text>
+            <line x1="470" y1="290" x2="470" y2="300" class="wire"/>
+            <line x1="460" y1="300" x2="480" y2="300" class="wire"/> <line x1="460" y1="310" x2="480" y2="310" class="wire"/> <text x="485" y="310" class="label">C4(0.047)</text>
+            <line x1="470" y1="310" x2="470" y2="340" class="wire"/>
+
+            <line x1="50" y1="340" x2="650" y2="340" stroke="black" stroke-width="3"/>
+            <text x="660" y="345" class="label">GND</text>
+            <line x1="375" y1="290" x2="375" y2="340" class="wire"/> </svg>
+    </div>
+
+    <h2>Список компонентов (BOM)</h2>
+    <table>
+        <tr>
+            <th>Компонент</th>
+            <th>Номинал / Тип</th>
+            <th>Назначение</th>
+        </tr>
+        <tr>
+            <td>IC1</td>
+            <td>LM386N-1</td>
+            <td>Операционный усилитель звуковой частоты</td>
+        </tr>
+        <tr>
+            <td>C1</td>
+            <td>10µF (16V)</td>
+            <td>Входной разделительный конденсатор (обрезает DC)</td>
+        </tr>
+        <tr>
+            <td>C2</td>
+            <td>220µF (16V)</td>
+            <td>Фильтр питания (сглаживает шумы от USB)</td>
+        </tr>
+        <tr>
+            <td>C3</td>
+            <td>220µF - 470µF (16V)</td>
+            <td>Выходной конденсатор (пропускает звук, блокирует DC)</td>
+        </tr>
+        <tr>
+            <td>C4</td>
+            <td>0.047µF (47nF) керамика</td>
+            <td>Часть цепи Цобеля (стабильность)</td>
+        </tr>
+        <tr>
+            <td>R1</td>
+            <td>10 Ом</td>
+            <td>Часть цепи Цобеля</td>
+        </tr>
+        <tr>
+            <td>VR1</td>
+            <td>10k Ом (Log/Аудио)</td>
+            <td>Потенциометр для регулировки громкости</td>
+        </tr>
+        <tr>
+            <td>SPK</td>
+            <td>4 или 8 Ом, 1-3 Ватта</td>
+            <td>Динамик</td>
+        </tr>
+        <tr>
+            <td>Power</td>
+            <td>USB штекер</td>
+            <td>Источник питания 5V</td>
+        </tr>
+    </table>
+
+    <h2>Как это работает (Полный разбор)</h2>
+
+    <h3>1. Питание (USB)</h3>
+    <p>Микросхема LM386 отлично работает от 5 вольт. 
+    <strong>C2 (220µF)</strong> — критически важен. USB-порты компьютеров часто "шумят" из-за цифровых схем. Этот конденсатор действует как резервуар энергии, сглаживая пульсации напряжения и предотвращая гудение в динамике.</p>
+
+    <h3>2. Входной каскад</h3>
+    <p>Аудиосигнал поступает через <strong>VR1 (Потенциометр)</strong>. Он работает как делитель напряжения, позволяя уменьшать амплитуду входного сигнала (громкость). Сигнал проходит через <strong>C1 (10µF)</strong> на <strong>Пин 3 (+)</strong>. Этот конденсатор пропускает только переменный ток (звук), отсекая постоянное напряжение, которое может прийти от источника звука.</p>
+
+    <h3>3. Усиление (Gain)</h3>
+    <p>В этой схеме пины <strong>1 и 8 оставлены свободными</strong>. В таком режиме LM386 имеет внутренний коэффициент усиления (Gain), равный <strong>20</strong>. Этого достаточно для прослушивания музыки с телефона или ПК. 
+    <br><em>Совет: Если нужно больше громкости, можно поставить конденсатор 10µF между пинами 1 и 8 (+ к пину 1), тогда усиление вырастет до 200, но могут возрасти и шумы.</em></p>
+
+    <h3>4. Цепь Цобеля (Zobel Network)</h3>
+    <p>Элементы <strong>R1 (10Ω)</strong> и <strong>C4 (0.047µF)</strong>, подключенные последовательно от выхода (Пин 5) к земле, образуют цепь Цобеля. Динамик — это индуктивная нагрузка. На высоких частотах его сопротивление растет, что может заставить усилитель самовозбуждаться (свистеть/греться). Эта цепочка выравнивает нагрузку для усилителя.</p>
+
+    <h3>5. Выходной каскад</h3>
+    <p>На выходе LM386 (Пин 5) присутствует постоянное напряжение, равное половине напряжения питания (около 2.5V). Постоянный ток сожжет динамик. 
+    Поэтому ставится большой электролитический конденсатор <strong>C3 (220µF и выше)</strong>. Он блокирует эти 2.5V, но пропускает переменный звуковой сигнал на динамик.</p>
+
+    <div class="note">
+        <strong>Важно при сборке:</strong>
+        <ul>
+            <li>Минусы конденсаторов C1, C2, C3 должны смотреть в сторону более низкого потенциала (обычно к выходу или земле, проверяйте полярность по схеме).</li>
+            <li>Земли (GND) всех разъемов и питания должны быть соединены в одной точке ("звезда"), чтобы избежать фона.</li>
+        </ul>
+    </div>
+</div>
+
+</body>
+</html>
